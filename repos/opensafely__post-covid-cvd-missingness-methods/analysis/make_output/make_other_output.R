@@ -1,0 +1,134 @@
+# ------------------------------------------------------------------------------
+#
+# make_table2_output.R
+#
+# This file handles any other required post-processing of tables 1 and 2
+# (patient characteristics and outcomes)
+# for the replicated Covid-19 x Cardiovascular paper
+# Original text: https://doi.org/10.1038/s41467-024-46497-0
+#
+# Arguments:
+#  - output - string, spoecifies which table is being processed
+#             (table1, table2, etc)
+#  - cohort - string, specifies which study cohort is being processed
+#             (prevax, vax, unvax)
+#  - subgroup - string, specifies other subgroups by which the study population
+#               can be divided (e.g. main, covid hospitalisation)
+#
+# Returns:
+#  - The post-processed patient characteristics data table
+#    (output/make_output/table1_output_midpoint6.csv)
+#  - The post-processed outcomes table
+#    (output/make_output/table2-sub_covidhospital_output_midpoint.csv)
+#
+# Authors: Emma Tarmey, Venexia Walker, UoB ehrQL Team
+#
+# ------------------------------------------------------------------------------
+
+
+# Load packages ----------------------------------------------------------------
+print('Load packages')
+
+library(magrittr)
+library(data.table)
+library(stringr)
+library(tidyr)
+
+# Source common functions ------------------------------------------------------
+print('Source common functions')
+
+source("analysis/utility.R")
+
+# Define make_output folder ------------------------------------------
+print("Creating output/make_output output folder")
+
+makeout_dir <- "output/make_output/"
+fs::dir_create(here::here(makeout_dir))
+
+# Specify arguments ------------------------------------------------------------
+print('Specify arguments')
+
+args <- commandArgs(trailingOnly = TRUE)
+
+if (length(args) == 0) {
+  output <- "table1" # the action to apply
+  cohorts <- "prevax-preex_FALSE;vax-preex_FALSE;unvax-preex_FALSE;prevax-preex_TRUE;vax-preex_TRUE;unvax-preex_TRUE" # The iterative label
+  subgroup <- ""
+} else {
+  output <- args[[1]]
+  cohorts <- args[[2]]
+  if (length(args) < 3) {
+    subgroup <- "" # an optional subgroup label (e.g. preex_FALSE)
+  } else {
+    subgroup <- args[[3]]
+  }
+}
+
+# Separate cohorts -------------------------------------------------------------
+print('Separate cohorts')
+
+cohorts <- stringr::str_split(as.vector(cohorts), ";")[[1]]
+
+# Generate output/saving string ------------------------------------------------
+print('Generate strings')
+
+if (subgroup == "All" | subgroup == "") {
+  sub_str <- ""
+} else {
+  if (grepl("preex", subgroup)) {
+    sub_str <- paste0("-", subgroup)
+  } else {
+    sub_str <- paste0("-sub_", subgroup)
+  }
+}
+
+# Create blank table -----------------------------------------------------------
+print('Create blank table')
+
+df <- NULL
+
+# Add output from each cohort --------------------------------------------------
+print('Add output from each cohort')
+
+for (i in cohorts) {
+  # load input
+  tmp <- readr::read_csv(paste0(
+    "output/",
+    output,
+    "/",
+    output,
+    "-cohort_",
+    i,
+    sub_str,
+    "-midpoint6.csv"
+  ))
+
+  # create column for cohort
+  tmp$cohort <- i
+
+  # combining dataframes
+  df <- rbind(df, tmp, fill = TRUE)
+}
+
+df <- df[df["cohort"] != TRUE, ]
+
+
+# table2-specific processing ---------------------------------------------------
+if (output == "table2") {
+  print("table2 processing")
+
+  df$unexposed_person_days_midpoint6 <- roundmid_any(df$unexposed_person_days)
+  df$exposed_person_days_midpoint6   <- roundmid_any(df$exposed_person_days)
+  df$total_person_days_midpoint6     <- roundmid_any(df$total_person_days)
+  df[, c("unexposed_person_days", "exposed_person_days", "total_person_days")] <- NULL
+}
+
+
+# Save output ------------------------------------------------------------------
+print('Save output')
+
+readr::write_csv(
+  df,
+  paste0(makeout_dir, output, sub_str, "_output_midpoint6.csv"),
+  na = "-"
+)
