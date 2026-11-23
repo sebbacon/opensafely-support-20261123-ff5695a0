@@ -2,6 +2,7 @@
 # Run: Rscript analysis/unconfoundedness_test/benchmark_ties.R [number_of_rows]
 # No real patient data is read or written.
 library(survival)
+source("analysis/unconfoundedness_test/fn-add_cox_outcome.R")
 
 args <- commandArgs(trailingOnly = TRUE)
 n <- if (length(args)) as.integer(args[[1]]) else 50000L
@@ -19,6 +20,26 @@ dat <- data.frame(
 )
 for (i in 1:20) dat[[paste0("cov_bin_", i)]] <- rbinom(n, 1, 0.3)
 dat$date[dat$event == 0] <- as.Date("2021-02-28")
+
+prep <- data.frame(out_date = dat$date, end_date_outcome = as.Date("2021-02-28"))
+prep$out_date[dat$event == 0] <- as.Date(NA)
+old <- prep
+old$outcome_cox_dates <- rep(as.Date(NA), n)
+old$cens_status <- rep(NA, n)
+old_time <- system.time(for (i in seq_len(n)) {
+  if (is.na(old$out_date[i])) {
+    old$cens_status[i] <- 0
+    old$outcome_cox_dates[i] <- old$end_date_outcome[i]
+  } else {
+    old$cens_status[i] <- 1
+    old$outcome_cox_dates[i] <- old$out_date[i]
+  }
+})[["elapsed"]]
+new_time <- system.time(new <- add_cox_outcome(prep))[["elapsed"]]
+stopifnot(identical(old$outcome_cox_dates, new$outcome_cox_dates),
+          identical(as.integer(old$cens_status), new$cens_status))
+cat(sprintf("Outcome preparation, row loop: %.3f seconds; vectorised: %.3f seconds\n",
+            old_time, new_time))
 
 covariates <- setdiff(names(dat), c("date", "event"))
 sets <- list(
