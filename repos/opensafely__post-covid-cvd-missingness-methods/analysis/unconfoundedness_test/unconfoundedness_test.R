@@ -53,6 +53,7 @@ fs::dir_create(here::here(unconfoundedness_test_dir))
 print("Source common functions")
 
 source("analysis/utility.R")
+source("analysis/unconfoundedness_test/fn-add_cox_outcome.R")
 
 
 # Specify arguments ------------------------------------------------------------
@@ -208,24 +209,11 @@ cox_df <- (model_input_df %>% select(c(
 # prevent conversion to factor
 cox_df$cov_num_bmi <- as.numeric(cox_df$cov_num_bmi)
 
-cox_df$outcome_cox_dates <- rep(as.Date(NA), times = nrow(cox_df))
-cox_df$cens_status       <- rep(NA, times = nrow(cox_df))
-
 # 0 = censoring time = date of end of study
 # 1 = failure time = time of outcome event
 # See: https://www.rdocumentation.org/packages/survival/versions/3.8-3/topics/Surv
 # and: https://glmnet.stanford.edu/articles/Coxnet.html#basic-usage-for-right-censored-data
-for (i in c(1:nrow(cox_df))) {
-  if (is.na(cox_df$out_date[i])) {
-    # right-hand censorship takes place
-    cox_df$cens_status[i]       <- 0
-    cox_df$outcome_cox_dates[i] <- cox_df$end_date_outcome[i]
-  } else {
-    # event takes place (failure)
-    cox_df$cens_status[i]       <- 1
-    cox_df$outcome_cox_dates[i] <- cox_df$out_date[i]
-  }
-}
+cox_df <- add_cox_outcome(cox_df)
 
 
 # Test fully_adjusted variable selection results ----------------
