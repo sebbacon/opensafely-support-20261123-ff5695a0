@@ -63,6 +63,28 @@ Technical details:
 
 -   The [`active_analyses`](lib/active_analyses.rds) contains a list of active analyses.
 
+### Profiling the unconfoundedness action with synthetic data
+
+The action consumes processed RDS files and variable-selection CSV files, not an
+ehrQL dataset directly. To exercise this final action without patient data, run
+the following from the project root in an environment with the action's R
+packages installed:
+
+```sh
+Rscript analysis/unconfoundedness_test/test-add_cox_outcome.R
+Rscript analysis/unconfoundedness_test/make_synthetic_inputs.R 5000
+Rscript analysis/unconfoundedness_test/unconfoundedness_test.R cohort_prevax-main-ami prevax '18;30;40;50;60;70;80;90'
+Rscript analysis/unconfoundedness_test/benchmark_ties.R 50000
+```
+
+The synthetic generator writes to `output/` and uses invented covariates and
+event dates. Its counts and model results say nothing about the real cohort.
+The benchmark compares the current Efron tie method with Breslow, which can be
+faster when many events share a calendar day but can change estimates and the
+unconfoundedness conclusion. Review those differences before changing the
+analysis method. The event-date preparation in the action is vectorised; the
+test checks that events and censored records retain the same dates and status.
+
 -   The [`project.yaml`](./project.yaml) defines run-order and dependencies for all the analysis scripts. This file should not be edited directly. To make changes to the yaml, edit and run the [`create_project_actions.R`](analysis/create_project_actions.R) script which generates all the actions.
 
 -   Descriptive and Model outputs, including figures and tables are in the [`released_outputs`](./release_outputs) directory.
